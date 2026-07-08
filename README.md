@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 Les données sont hébergées séparément (trop volumineuses pour GitHub).
 
-**Lien OneDrive :** [Télécharger data/](https://hessoit-my.sharepoint.com/:f:/g/personal/alexandr_traber_hes-so_ch/IgCSNRKiuABTS7AtO3jEgAOIAb7yDiC429tuSr8N5k-QisQ?e=dBAWjZ)
+**Zenodo :** [https://doi.org/10.5281/zenodo.21265221](https://doi.org/10.5281/zenodo.21265221)
 
 1. Télécharger chaque sous-dossier séparément **ou** télécharger le dossier entier (bouton **Télécharger** → zip).
 2. Créer un dossier `data/` à la racine du projet et y placer les 4 sous-dossiers :
