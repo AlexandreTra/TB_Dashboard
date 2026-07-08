@@ -18,7 +18,6 @@ from core.mt5_runner import (
     EA_CONFIG,
     FOLDS,
     SYMBOLS,
-    SYMBOLS_HISTORY_WARNING,
     TIMEFRAMES,
     check_environment,
     is_mt5_running,
@@ -147,16 +146,6 @@ with col_fold:
         fold_desc = f"Pli {n} — IS {f_from}–{f_is_end} / OOS {f_fwd}–{f_to}"
         if st.checkbox(fold_desc, value=True, key=f"fold_{n}"):
             sel_folds.append(fold)
-
-# ── Avertissements ────────────────────────────────────────────────────────────
-if any(f["n"] <= 2 for f in sel_folds):
-    warned = [s for s in sel_syms if s in SYMBOLS_HISTORY_WARNING]
-    if warned:
-        st.warning(
-            f"⚠️ **Historique potentiellement insuffisant** pour "
-            f"{', '.join(SYMBOLS[s] for s in warned)} "
-            "sur les plis 1 et 2 (IC Markets peut ne pas remonter à 2015)."
-        )
 
 # ── Capital ───────────────────────────────────────────────────────────────────
 deposit = float(st.number_input(

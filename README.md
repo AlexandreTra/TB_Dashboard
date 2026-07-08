@@ -73,6 +73,13 @@ TB_Dashboard/
 ├── config.py             Chemins de données (relatifs au projet)
 ├── config_analyse.py     Configuration métier (familles EA, fenêtres OOS)
 ├── requirements.txt
+├── EAs/                  Code source MQL5 des 6 Expert Advisors
+│   ├── EA_ATRBreakout_Roll.mq5
+│   ├── EA_Breakout_Roll.mq5
+│   ├── EA_MeanReversion_Roll.mq5
+│   ├── EA_MoyennesMobiles_Roll.mq5
+│   ├── EA_TripleEMA_Roll.mq5
+│   └── EA_ZScore_Roll.mq5
 ├── pages/
 │   ├── accueil.py        Chargement des données, métriques globales
 │   ├── vue_globale.py    Screening + heatmaps IS/OOS par TF
