@@ -3,6 +3,8 @@
 Dashboard Streamlit développé dans le cadre d'un Travail de Bachelor à la HEG Genève.  
 Il présente les résultats d'une optimisation Walk-Forward de 6 stratégies algorithmiques sur 6 matières premières (Brent, Gaz Naturel, Or, Platine, Café, Cacao).
 
+**Auteur :** Alexandre Traber — HEG Genève, 2026
+
 ---
 
 ## Installation
@@ -39,7 +41,8 @@ Les données sont hébergées séparément (trop volumineuses pour GitHub).
 
 **Lien OneDrive :** [Télécharger data/](https://hessoit-my.sharepoint.com/:f:/g/personal/alexandr_traber_hes-so_ch/IgCSNRKiuABTS7AtO3jEgAOIAb7yDiC429tuSr8N5k-QisQ?e=dBAWjZ)
 
-Décompresser le dossier `data/` à la racine du projet :
+1. Télécharger chaque sous-dossier séparément **ou** télécharger le dossier entier (bouton **Télécharger** → zip).
+2. Créer un dossier `data/` à la racine du projet et y placer les 4 sous-dossiers :
 
 ```
 TB_Dashboard/
@@ -50,8 +53,9 @@ TB_Dashboard/
 │   └── Résultats_Detail/   (journaux de trades individuels — ~10 Mo)
 ```
 
+> **Note :** `Résultats_FT/` pèse ~16 Go — le téléchargement et l'extraction peuvent prendre plusieurs minutes.  
 > Le dashboard fonctionne sans `Résultats_Detail/` (seule la page Journaux sera vide).  
-> Il fonctionne sans `Résultats_FT/` mais ne chargera aucun résultat.
+> Il fonctionne sans `Résultats_FT/` mais ne chargera aucun résultat Walk-Forward.
 
 ### 4. Lancer le dashboard
 
