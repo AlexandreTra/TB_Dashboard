@@ -4,16 +4,14 @@ Transformations pandas pures — aucun import Streamlit.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
+from config import TB_MT5_DIR
 from config_analyse import ROBOT_FAMILY, OOS_WINDOWS
 
 # ── Chemins externes ───────────────────────────────────────────────────────────
-_HERE   = Path(__file__).parent.parent   # TB_Dashboard/
-_TB_MT5 = _HERE.parent / "TB-MT5"       # Travail de bachelor/TB-MT5/
+_TB_MT5 = TB_MT5_DIR
 
 # Actif clean → symbole dans dates_rolls.csv
 _ACTIF_TO_TB: dict[str, str] = {

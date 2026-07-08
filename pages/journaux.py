@@ -13,7 +13,7 @@ import streamlit as st
 
 from config_analyse import FAMILY_COLORS, OOS_LABELS
 from core.constants import GLOBAL_CSS, PLOTLY_DARK
-from core.ui_helpers import st_plotly
+from core.ui_helpers import chart_badge, st_plotly
 from core.mt5_runner import EA_CONFIG, SYMBOLS
 from core.single_run import OUTPUT_DETAIL, detail_status, load_all_detail_trades
 
@@ -191,7 +191,7 @@ with tab_mensuel:
         title="P&L moyen par trade — actif × mois calendaire",
         **PLOTLY_DARK,
     )
-    st_plotly(fig_hm1, "jrnl_hm1")
+    st_plotly(fig_hm1, "jrnl_hm1", num=76)
 
     st.markdown("#### Heatmap P&L moyen par famille de stratégie × mois")
     hm2 = (
@@ -210,7 +210,7 @@ with tab_mensuel:
     fig_hm2.update_layout(
         height=260, title="P&L moyen par trade — famille × mois", **PLOTLY_DARK,
     )
-    st_plotly(fig_hm2, "jrnl_hm2")
+    st_plotly(fig_hm2, "jrnl_hm2", num=77)
 
     st.markdown("#### Distribution mensuelle interactive")
     _color_by = st.radio(
@@ -230,8 +230,9 @@ with tab_mensuel:
     )
     fig_bar.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.3)", line_width=1)
     fig_bar.update_layout(height=420, **PLOTLY_DARK)
-    st_plotly(fig_bar, "jrnl_bar")
+    st_plotly(fig_bar, "jrnl_bar", num=78)
 
+    chart_badge(79)
     st.markdown("#### Tableau récapitulatif par actif × mois")
     tbl = (
         df.groupby(["Actif", "month"])
@@ -271,8 +272,9 @@ with tab_cross:
         title="Top 20 robot × actif — P&L total (toutes passes et plis OOS)",
     )
     fig_rank.update_layout(height=500, **PLOTLY_DARK)
-    st_plotly(fig_rank, "cross_rank")
+    st_plotly(fig_rank, "cross_rank", num=80)
 
+    chart_badge(81)
     st.dataframe(
         rank[["Rang", "Robot", "Actif", "PnL", "Moy", "N", "Win %"]]
         .rename(columns={"PnL": "P&L total ($)", "Moy": "P&L moy ($)", "N": "N trades"}),
@@ -299,7 +301,7 @@ with tab_cross:
         title="P&L moyen par trade — robot × actif",
         **PLOTLY_DARK,
     )
-    st_plotly(fig_hm3, "cross_hm")
+    st_plotly(fig_hm3, "cross_hm", num=82)
 
     st.markdown("#### Robustesse — écart Meilleure vs Pire passe par actif")
     sp = (
@@ -316,7 +318,7 @@ with tab_cross:
             title="Écart P&L moy (Meilleure − Pire passe) — robustesse par actif",
         )
         fig_sp.update_layout(height=360, **PLOTLY_DARK)
-        st_plotly(fig_sp, "cross_spread")
+        st_plotly(fig_sp, "cross_spread", num=83)
 
     st.markdown("#### Dérive temporelle — P&L moyen par pli OOS")
     pli_df = (
@@ -331,4 +333,4 @@ with tab_cross:
     )
     fig_pli.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.3)", line_width=1)
     fig_pli.update_layout(height=360, **PLOTLY_DARK)
-    st_plotly(fig_pli, "cross_pli")
+    st_plotly(fig_pli, "cross_pli", num=84)

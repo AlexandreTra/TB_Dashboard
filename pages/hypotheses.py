@@ -21,9 +21,9 @@ from core.analyse_metrics import (
     pairwise_family_comparison,
     per_fold_family_comparison,
 )
-from core.constants import GLOBAL_CSS
+from core.constants import GLOBAL_CSS, PLOTLY_DARK
 from core.hyp_b_content import render as _render_hyp_b
-from core.ui_helpers import st_plotly
+from core.ui_helpers import chart_badge, st_plotly
 from core.mt5_runner import FOLDS
 
 _FOLD_OOS = {f["n"]: f"Pli {f['n']} OOS {f['forward_date'][:4]}–{f['to_date'][:4]}" for f in FOLDS}
@@ -86,9 +86,9 @@ with tab_a:
             "OOS_Pct_Prof": "% Prof OOS", "WFE_Pct": "WFE %",
             "OOS_Sharpe_Med": "Sharpe OOS", "OOS_DD_Med": "DD% OOS",
         })
+        chart_badge(54)
         st.dataframe(tbl, use_container_width=True, hide_index=True)
 
-        # ── Verdict ───────────────────────────────────────────────────────────
         v = pairwise_family_comparison(df_e, "Trend Following", "Mean Reversion", ENERGY_ASSETS, met_a)
 
         if v["val_a"] is not None and v["val_b"] is not None:
@@ -97,19 +97,6 @@ with tab_a:
             c2.metric("Mean Reversion",  f"{v['val_b']:.3f}")
             c3.metric("Delta TF − MR",   f"{v['delta']:+.3f}",
                       delta_color="normal" if v["confirmed"] else "inverse")
-
-            lbl = _METRIC_LABELS.get(met_a, met_a)
-            if v["confirmed"]:
-                st.success(
-                    f"✅ **Hypothèse A confirmée** : Trend Following = **{v['val_a']:.3f}** "
-                    f"vs Mean Reversion = **{v['val_b']:.3f}** ({lbl}) sur l'énergie "
-                    f"— avantage de **{v['delta']:+.3f}**."
-                )
-            else:
-                st.error(
-                    f"❌ **Hypothèse A infirmée** : Trend Following = **{v['val_a']:.3f}** "
-                    f"vs Mean Reversion = **{v['val_b']:.3f}** ({lbl}) sur l'énergie."
-                )
 
         # ── Bar comparatif par famille × actif ───────────────────────────────
         st.markdown("#### Médiane par famille et par actif")
@@ -123,8 +110,9 @@ with tab_a:
             labels={"actif_clean": "Actif", "famille": "Famille", met_a: _METRIC_LABELS.get(met_a, met_a)},
             text_auto=".2f",
         )
+        fig_a.update_layout(**PLOTLY_DARK)
         fig_a.update_layout(height=380, margin=dict(l=20, r=20, t=20, b=20))
-        st_plotly(fig_a, "hyp_a_bar")
+        st_plotly(fig_a, "hyp_a_bar", num=55)
 
         # ── Boxplot par pli ───────────────────────────────────────────────────
         st.markdown("#### Distribution par pli")
@@ -136,11 +124,12 @@ with tab_a:
             labels={"famille": "Famille", met_a: _METRIC_LABELS.get(met_a, met_a)},
             points="outliers",
         )
+        fig_box_a.update_layout(**PLOTLY_DARK)
         fig_box_a.update_layout(
             height=380, margin=dict(l=20, r=20, t=50, b=20),
             showlegend=False,
         )
-        st_plotly(fig_box_a, "hyp_a_box")
+        st_plotly(fig_box_a, "hyp_a_box", num=56)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -179,9 +168,9 @@ with tab_c:
             "OOS_Pct_Prof": "% Prof OOS", "WFE_Pct": "WFE %",
             "OOS_Sharpe_Med": "Sharpe OOS", "OOS_DD_Med": "DD% OOS",
         })
+        chart_badge(73)
         st.dataframe(tbl_c, use_container_width=True, hide_index=True)
 
-        # ── Verdict global ────────────────────────────────────────────────────
         v_c = pairwise_family_comparison(df_m, "Mean Reversion", "Trend Following", METAL_ASSETS, met_c)
 
         if v_c["val_a"] is not None and v_c["val_b"] is not None:
@@ -190,20 +179,6 @@ with tab_c:
             c2.metric("Trend Following", f"{v_c['val_b']:.3f}")
             c3.metric("Delta MR − TF",   f"{v_c['delta']:+.3f}",
                       delta_color="normal" if v_c["confirmed"] else "inverse")
-
-            lbl_c = _METRIC_LABELS.get(met_c, met_c)
-            if v_c["confirmed"]:
-                st.success(
-                    f"✅ **Hypothèse C confirmée (toutes périodes)** : Mean Reversion = **{v_c['val_a']:.3f}** "
-                    f"vs Trend Following = **{v_c['val_b']:.3f}** ({lbl_c}) sur les métaux.  \n"
-                    f"*À réévaluer avec exclusion des crises une fois les equity curves disponibles.*"
-                )
-            else:
-                st.error(
-                    f"❌ **Hypothèse C infirmée (toutes périodes)** : Mean Reversion = **{v_c['val_a']:.3f}** "
-                    f"vs Trend Following = **{v_c['val_b']:.3f}** ({lbl_c}) sur les métaux.  \n"
-                    f"*À réévaluer avec exclusion des crises une fois les equity curves disponibles.*"
-                )
 
         # ── Détail par pli ────────────────────────────────────────────────────
         st.markdown("#### Comparaison par pli — effet des crises (indirect)")
@@ -237,10 +212,12 @@ with tab_c:
                 labels={"value": _METRIC_LABELS.get(met_c, met_c), "variable": "Famille"},
                 title=f"{_METRIC_LABELS.get(met_c, met_c)} — Or et Platine par pli",
             )
+            fig_pli.update_layout(**PLOTLY_DARK)
             fig_pli.update_layout(height=420, margin=dict(l=20, r=20, t=60, b=20))
-            st_plotly(fig_pli, "hyp_c_pli")
+            st_plotly(fig_pli, "hyp_c_pli", num=74)
 
             # Tableau recap avec delta
+            chart_badge(75)
             st.dataframe(
                 df_pli[["actif_label", "Pli OOS", "Mean Reversion", "Trend Following", "delta", "winner"]]
                 .rename(columns={

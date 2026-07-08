@@ -25,11 +25,27 @@ _WHITE_LAYOUT = dict(
 )
 
 
+_BADGE_HTML = (
+    '<div style="margin:0 0 2px 0">'
+    '<span style="background:rgba(78,140,255,0.13);'
+    'border:1px solid rgba(78,140,255,0.38);border-radius:4px;'
+    'padding:1px 9px;font-size:0.76em;font-weight:700;'
+    "color:#7ec8ff;font-family:'Courier New',monospace;letter-spacing:0.04em"
+    '">#{n}</span></div>'
+)
+
+
+def chart_badge(num: int) -> None:
+    """Affiche le badge #N de l'index au-dessus d'un tableau ou graphique."""
+    st.markdown(_BADGE_HTML.format(n=num), unsafe_allow_html=True)
+
+
 def st_plotly(
     fig,
     key: str,
     filename: str | None = None,
     height: int | None = None,
+    num: int | None = None,
 ) -> None:
     """
     Render a Plotly figure in dark theme + offer a white-background PNG download.
@@ -40,7 +56,10 @@ def st_plotly(
     key      : unique Streamlit key (must be unique within the page)
     filename : base name for the downloaded file (defaults to key)
     height   : explicit height override for the PNG (pixels); None = use fig.layout.height
+    num      : index number from the visualisation catalogue (shows a #N badge above the chart)
     """
+    if num is not None:
+        chart_badge(num)
     # ── Affichage normal (thème sombre) ──────────────────────────────────────
     st.plotly_chart(fig, use_container_width=True, key=key)
 

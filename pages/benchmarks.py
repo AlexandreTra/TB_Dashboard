@@ -21,9 +21,11 @@ from config_analyse import (
     ALL_ASSETS, ASSET_LABELS, FAMILY_COLORS, OOS_LABELS, OOS_WINDOWS,
 )
 from core.analyse_metrics import add_family_column, bloomberg_oos_returns, buyhold_oos_returns
-from core.constants import GLOBAL_CSS
-from core.ui_helpers import st_plotly
-from core.mt5_runner import FOLDS
+from core.constants import GLOBAL_CSS, PLOTLY_DARK
+from core.market_data import _load_local_ohlc
+from core.mt5_runner import EA_CONFIG, FOLDS
+from core.single_run import OUTPUT_DETAIL, load_detail_trades
+from core.ui_helpers import chart_badge, st_plotly
 
 _FOLD_LABELS = {f["n"]: f"Pli {f['n']}" for f in FOLDS}
 _FOLD_OOS    = {f["n"]: f"Pli {f['n']} ({f['forward_date'][:4]}–{f['to_date'][:4]})" for f in FOLDS}
@@ -121,9 +123,11 @@ if df_comp.empty:
     st.stop()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_heat, tab_family, tab_detail = st.tabs([
+tab_heat, tab_abs, tab_family, tab_equity, tab_detail = st.tabs([
     "🗺️ Heatmap Excédent",
+    "📊 Rdt Absolu",
     "👨‍👩‍👧 Par Famille",
+    "📈 Courbes Équité",
     "📋 Tableau Détaillé",
 ])
 
@@ -165,8 +169,9 @@ with tab_heat:
                 labels={"x": "Actif", "y": "Stratégie", "color": "Rdt OOS % méd"},
                 title="Rendement OOS % (médian, sans B&H)",
             )
+            fig.update_layout(**PLOTLY_DARK)
             fig.update_layout(height=400, margin=dict(l=10, r=10, t=50, b=10))
-            st_plotly(fig, "hm_no_bh")
+            st_plotly(fig, "hm_no_bh", num=36)
     else:
         for fold_n in sel_folds:
             df_fold = df_h[df_h["Pli"] == fold_n]
@@ -187,8 +192,9 @@ with tab_heat:
                 labels={"x": "Actif", "y": "Stratégie", "color": "Excédent %"},
                 title=_FOLD_OOS.get(fold_n, f"Pli {fold_n}"),
             )
+            fig.update_layout(**PLOTLY_DARK)
             fig.update_layout(height=400, margin=dict(l=10, r=10, t=60, b=10))
-            st_plotly(fig, f"hm_bh_{fold_n}")
+            st_plotly(fig, f"hm_bh_{fold_n}", num=36)
 
             # B&H de référence pour ce pli (rendement + MaxDD)
             bh_vals = []
@@ -205,7 +211,90 @@ with tab_heat:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — PAR FAMILLE
+# TAB 2 — RDT ABSOLU stratégie vs B&H
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_abs:
+    st.markdown("### Rendement OOS médian vs Buy&Hold — valeurs absolues par actif")
+    st.markdown(
+        "Chaque cluster = un actif. "
+        "La barre **grise** est le Buy&Hold passif (moyenne des 3 plis OOS). "
+        "Les barres colorées sont le rendement OOS **médian** de chaque famille de stratégies "
+        "(tous plis confondus)."
+    )
+
+    df_abs = df_comp.copy()
+    df_abs["Actif Label"] = df_abs["Actif"].map(ASSET_LABELS).fillna(df_abs["Actif"])
+
+    _has_bh = df_abs["Rdt B&H %"].notna().any()
+
+    # B&H moyen par actif (moyenne des plis disponibles)
+    bh_by_actif = (
+        df_abs.groupby("Actif Label")["Rdt B&H %"]
+        .mean().round(2).reset_index()
+        .rename(columns={"Rdt B&H %": "Rdt B&H"})
+        .dropna(subset=["Rdt B&H"])
+    )
+
+    # Rendement OOS médian par actif × famille (tous plis confondus)
+    strat_by_fam = (
+        df_abs.groupby(["Actif Label", "Famille"])["Rdt OOS % (méd)"]
+        .median().round(2).reset_index()
+    )
+
+    # Ordre des actifs trié par B&H décroissant
+    if _has_bh and not bh_by_actif.empty:
+        _actif_order = bh_by_actif.sort_values("Rdt B&H", ascending=False)["Actif Label"].tolist()
+    else:
+        _actif_order = sorted(df_abs["Actif Label"].unique().tolist())
+
+    fig_abs = go.Figure()
+
+    # Barre grise = Buy & Hold de référence
+    if _has_bh and not bh_by_actif.empty:
+        fig_abs.add_bar(
+            name="Buy & Hold",
+            x=bh_by_actif["Actif Label"],
+            y=bh_by_actif["Rdt B&H"],
+            marker_color="#9E9E9E",
+            opacity=0.75,
+            text=bh_by_actif["Rdt B&H"].apply(lambda v: f"{v:+.1f}%"),
+            textposition="outside",
+        )
+
+    # Une barre par famille de stratégies
+    for _fam in strat_by_fam["Famille"].unique():
+        _df_fam = strat_by_fam[strat_by_fam["Famille"] == _fam]
+        fig_abs.add_bar(
+            name=_fam,
+            x=_df_fam["Actif Label"],
+            y=_df_fam["Rdt OOS % (méd)"],
+            marker_color=FAMILY_COLORS.get(_fam, "#AAAAAA"),
+            opacity=0.88,
+            text=_df_fam["Rdt OOS % (méd)"].apply(lambda v: f"{v:+.1f}%"),
+            textposition="outside",
+        )
+
+    fig_abs.add_hline(
+        y=0, line_dash="dash",
+        line_color="rgba(255,255,255,0.40)", line_width=1,
+    )
+    fig_abs.update_layout(**PLOTLY_DARK)
+    fig_abs.update_layout(
+        barmode="group",
+        height=520,
+        xaxis=dict(title="Actif", categoryorder="array", categoryarray=_actif_order),
+        yaxis_title="Rendement OOS % (médian des plis)",
+        legend=dict(orientation="h", y=1.10),
+        margin=dict(l=20, r=20, t=10, b=20),
+    )
+    st_plotly(fig_abs, "bh_abs_bar", num=37)
+
+    if not _has_bh:
+        st.info("ℹ️ Données B&H non disponibles — seuls les rendements stratégies sont affichés.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — PAR FAMILLE
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_family:
     st.markdown("### Excédent vs B&H par famille de stratégies")
@@ -237,8 +326,9 @@ with tab_family:
                 y=0, line_dash="dash",
                 line_color="rgba(255,255,255,0.4)", line_width=1,
             )
+            fig_fam.update_layout(**PLOTLY_DARK)
             fig_fam.update_layout(height=420, margin=dict(l=20, r=20, t=60, b=20))
-            st_plotly(fig_fam, "bh_fam_bar")
+            st_plotly(fig_fam, "bh_fam_bar", num=38)
 
         # ── Bar groupé : famille × actif ──────────────────────────────────────
         st.markdown("#### Excédent médian par famille × actif (tous plis confondus)")
@@ -259,10 +349,12 @@ with tab_family:
                 y=0, line_dash="dash",
                 line_color="rgba(255,255,255,0.4)", line_width=1,
             )
+            fig_act.update_layout(**PLOTLY_DARK)
             fig_act.update_layout(height=420, margin=dict(l=20, r=20, t=60, b=20))
-            st_plotly(fig_act, "bh_actif_bar")
+            st_plotly(fig_act, "bh_actif_bar", num=39)
 
         # ── Taux de sur-performance ───────────────────────────────────────────
+        chart_badge(40)
         st.markdown("#### Taux de sur-performance vs B&H par famille")
         df_beat = df_fam.dropna(subset=["Excédent %"])
         if not df_beat.empty:
@@ -322,19 +414,148 @@ with tab_family:
         )
         fig_dj.add_hline(y=0, line_dash="dash",
                          line_color="rgba(255,255,255,0.3)", line_width=1)
+        fig_dj.update_layout(**PLOTLY_DARK)
         fig_dj.update_layout(
             barmode="group", height=340,
             title="DJUBS — Rendement et MaxDD par fenêtre OOS",
             yaxis_title="%",
             margin=dict(l=20, r=20, t=60, b=20),
         )
-        st_plotly(fig_dj, "dj_ref_bar")
+        st_plotly(fig_dj, "dj_ref_bar", num=41)
     else:
         st.info("ℹ️ Données DJUBS non disponibles — vérifiez `TB-MT5/Bloomberg_Commodity_Index.csv`.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — TABLEAU DÉTAILLÉ
+# TAB 4 — COURBES D'ÉQUITÉ OOS
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_equity:
+    st.markdown("### Courbes d'Équité OOS — Stratégie vs Buy & Hold")
+    st.markdown(
+        "Sélectionnez une combinaison pour afficher l'évolution du capital en Out-of-Sample "
+        "superposée au Buy&Hold de l'actif sur la même fenêtre.  \n"
+        "⚠️ Nécessite les backtests individuels générés via **⚙️ Lancer MT5 → Backtests Individuels**."
+    )
+
+    _eq_c1, _eq_c2, _eq_c3, _eq_c4, _eq_c5 = st.columns(5)
+    with _eq_c1:
+        _eq_robot = st.selectbox(
+            "Robot", list(EA_CONFIG.keys()),
+            format_func=lambda r: EA_CONFIG[r]["label"], key="eq_robot",
+        )
+    with _eq_c2:
+        _eq_actif = st.selectbox(
+            "Actif", ALL_ASSETS,
+            format_func=lambda a: ASSET_LABELS.get(a, a), key="eq_actif",
+        )
+    with _eq_c3:
+        _eq_tf = st.selectbox("TF", ["H1", "H4", "D1"], key="eq_tf")
+    with _eq_c4:
+        _eq_pli = st.selectbox(
+            "Pli OOS", [1, 2, 3],
+            format_func=lambda n: _FOLD_OOS.get(n, f"Pli {n}"), key="eq_pli",
+        )
+    with _eq_c5:
+        _eq_pass = st.selectbox(
+            "Passe", ["best", "median", "worst"],
+            format_func=lambda p: {"best": "Meilleure", "median": "Médiane", "worst": "Pire"}[p],
+            key="eq_pass",
+        )
+
+    _eq_oos_s, _eq_oos_e = OOS_WINDOWS.get(_eq_pli, (None, None))
+
+    with st.spinner("Chargement du journal de trades…"):
+        _df_eq = load_detail_trades(
+            _eq_robot, _eq_actif, _eq_tf, _eq_pli, _eq_pass,
+            oos_start=_eq_oos_s,
+        )
+
+    if _df_eq.empty or "Time" not in _df_eq.columns:
+        st.info(
+            "Aucun journal disponible pour cette combinaison. "
+            "Générez les backtests via **⚙️ Lancer MT5**."
+        )
+    else:
+        # ── Courbe équité stratégie ───────────────────────────────────────────
+        if "Balance" in _df_eq.columns and _df_eq["Balance"].notna().sum() > 5:
+            _eq_s = _df_eq.dropna(subset=["Balance"]).set_index("Time")["Balance"].sort_index()
+            _initial_cap = float(_eq_s.iloc[0])
+        else:
+            _initial_cap = 100_000.0
+            _df_eq_s = _df_eq.dropna(subset=["Profit"]).sort_values("Time")
+            _eq_s = (_initial_cap + _df_eq_s.set_index("Time")["Profit"].cumsum())
+
+        # ── Courbe B&H sur même fenêtre ───────────────────────────────────────
+        _eq_bh = None
+        try:
+            _price_d = _load_local_ohlc(_eq_actif, "Daily")
+            if not _price_d.empty:
+                if _eq_oos_s:
+                    _price_d = _price_d[_eq_oos_s:]
+                if _eq_oos_e:
+                    _price_d = _price_d[:_eq_oos_e]
+                if not _price_d.empty:
+                    _p0 = float(_price_d["Close"].iloc[0])
+                    _eq_bh = _initial_cap * (_price_d["Close"] / _p0)
+        except Exception:
+            _eq_bh = None
+
+        # ── Graphique ─────────────────────────────────────────────────────────
+        _pass_lbl = {"best": "Meilleure", "median": "Médiane", "worst": "Pire"}.get(_eq_pass, _eq_pass)
+        fig_eq = go.Figure()
+        fig_eq.add_scatter(
+            x=_eq_s.index, y=_eq_s.values,
+            name=f"{EA_CONFIG[_eq_robot]['label']} — {_pass_lbl} passe",
+            line=dict(color="#4FC3F7", width=2),
+            hovertemplate="Date : %{x|%Y-%m-%d}<br>Capital : $%{y:,.0f}<extra></extra>",
+        )
+        if _eq_bh is not None:
+            fig_eq.add_scatter(
+                x=_eq_bh.index, y=_eq_bh.values,
+                name=f"Buy & Hold — {ASSET_LABELS.get(_eq_actif, _eq_actif)}",
+                line=dict(color="#9E9E9E", width=1.5, dash="dash"),
+                hovertemplate="Date : %{x|%Y-%m-%d}<br>B&H : $%{y:,.0f}<extra></extra>",
+            )
+        fig_eq.add_hline(
+            y=_initial_cap, line_dash="dot",
+            line_color="rgba(255,255,255,0.3)", line_width=1,
+            annotation_text=f"Capital initial ${_initial_cap:,.0f}",
+            annotation_position="right",
+        )
+        _eq_title = (
+            f"{EA_CONFIG[_eq_robot]['label']} / {ASSET_LABELS.get(_eq_actif, _eq_actif)} / "
+            f"{_eq_tf} / {_FOLD_OOS.get(_eq_pli, f'Pli {_eq_pli}')} — {_pass_lbl} passe"
+        )
+        fig_eq.update_layout(**PLOTLY_DARK)
+        fig_eq.update_layout(
+            height=480,
+            title=_eq_title,
+            yaxis_title="Capital ($)",
+            xaxis_title="Date OOS",
+            legend=dict(orientation="h", y=1.10),
+            margin=dict(l=20, r=80, t=60, b=20),
+        )
+        _eq_key = f"eq_{_eq_robot}_{_eq_actif}_{_eq_tf}_{_eq_pli}_{_eq_pass}"
+        st_plotly(fig_eq, _eq_key, filename=_eq_title, num=42)
+
+        # ── Métriques rapides ─────────────────────────────────────────────────
+        _eq_final = float(_eq_s.iloc[-1])
+        _eq_ret   = (_eq_final - _initial_cap) / _initial_cap * 100
+        _eq_peak  = float(_eq_s.cummax().iloc[-1])
+        _eq_dd    = float((((_eq_s - _eq_s.cummax()) / _eq_s.cummax()) * 100).min())
+        _mc1, _mc2, _mc3, _mc4 = st.columns(4)
+        _mc1.metric("Capital initial",  f"${_initial_cap:,.0f}")
+        _mc2.metric("Capital final",    f"${_eq_final:,.0f}", delta=f"{_eq_ret:+.1f}%")
+        _mc3.metric("MaxDD Stratégie",  f"{_eq_dd:.1f}%")
+        if _eq_bh is not None:
+            _bh_ret = (float(_eq_bh.iloc[-1]) - _initial_cap) / _initial_cap * 100
+            _mc4.metric("Rdt B&H",
+                        f"{_bh_ret:+.1f}%",
+                        delta=f"Écart strat {_eq_ret - _bh_ret:+.1f}%")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — TABLEAU DÉTAILLÉ
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_detail:
     st.markdown("### Tableau Détaillé")

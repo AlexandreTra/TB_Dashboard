@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from config import DATA_DIR, RESULTS_FT_DIR, TB_MT5_DIR, TB_PYTHON_DIR
 from core.constants import GLOBAL_CSS
 from core.loader import build_kpi_table, scan_result_pairs
 from core.mt5_runner import OUTPUT_BASE
@@ -19,6 +20,16 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
+# ── Vérification présence des données ─────────────────────────────────────────
+_missing = [d for d in [RESULTS_FT_DIR, TB_MT5_DIR, TB_PYTHON_DIR] if not d.exists()]
+if _missing:
+    st.error(
+        "**Données manquantes.** Les dossiers suivants sont introuvables :\n\n"
+        + "\n".join(f"- `data/{d.name}`" for d in _missing)
+        + "\n\nTéléchargez le dossier `data/` depuis le lien OneDrive indiqué dans le "
+        "`README.md` et placez-le à la racine du projet (`TB_Dashboard/data/`)."
+    )
 
 # ── Cache disque ──────────────────────────────────────────────────────────────
 _CACHE_DIR    = Path(__file__).parent.parent / "_cache"

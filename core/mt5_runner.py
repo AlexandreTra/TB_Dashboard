@@ -13,30 +13,53 @@ Enums MT5 utilisés (vérifiés sur doc officielle) :
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Iterator
 
-# ── Chemins MT5 ───────────────────────────────────────────────────────────────
-MT5_EXE = Path(r"C:\Program Files\MetaTrader 5\terminal64.exe")
-MT5_DATA = Path(
-    r"C:\Users\alext\AppData\Roaming\MetaQuotes\Terminal"
-    r"\D0E8209F77C8CF37AD8BF550E51FF075"
-)
-MT5_PROFILES_TESTER = MT5_DATA / "MQL5" / "Profiles" / "Tester"
-MT5_FILES           = MT5_DATA / "MQL5" / "Files"
+from config import PROJECT_ROOT, RESULTS_FT_DIR
+
+# ── Disponibilité MT5 ─────────────────────────────────────────────────────────
+MT5_AVAILABLE: bool = sys.platform == "win32"
+
+
+def _detect_mt5_data() -> Path | None:
+    """Détecte automatiquement le dossier AppData de MetaTrader 5.
+
+    Le dossier est nommé avec un hash MD5 qui dépend du broker — il varie
+    d'une machine à l'autre. On prend le premier dossier contenant MQL5/.
+    """
+    base = Path(os.environ.get("APPDATA", "")) / "MetaQuotes" / "Terminal"
+    if not base.exists():
+        return None
+    for candidate in sorted(base.iterdir()):
+        if candidate.is_dir() and (candidate / "MQL5").exists():
+            return candidate
+    return None
+
+
+if MT5_AVAILABLE:
+    MT5_EXE  = Path(r"C:\Program Files\MetaTrader 5\terminal64.exe")
+    MT5_DATA = _detect_mt5_data()
+    MT5_PROFILES_TESTER = MT5_DATA / "MQL5" / "Profiles" / "Tester" if MT5_DATA else None
+    MT5_FILES            = MT5_DATA / "MQL5" / "Files"               if MT5_DATA else None
+
+    # SET_SOURCE_DIR : dossier contenant les fichiers .set d'optimisation.
+    # Priorité : variable d'env TB_SET_DIR > data/Paramètrage_EA/ dans le projet.
+    _env_set = os.environ.get("TB_SET_DIR")
+    SET_SOURCE_DIR = (
+        Path(_env_set) if _env_set
+        else PROJECT_ROOT / "data" / "Paramètrage_EA"
+    )
+else:
+    MT5_EXE = MT5_DATA = MT5_PROFILES_TESTER = MT5_FILES = SET_SOURCE_DIR = None  # type: ignore[assignment]
 
 # ── Dossiers projet ───────────────────────────────────────────────────────────
-SET_SOURCE_DIR = Path(
-    r"C:\Users\alext\OneDrive - HESSO\HEG Genève\Semestre 6"
-    r"\Travail de bachelor\Paramètrage_EA"
-)
-OUTPUT_BASE = Path(
-    r"C:\Users\alext\OneDrive - HESSO\HEG Genève\Semestre 6"
-    r"\Travail de bachelor\Résultats_FT"
-)
+OUTPUT_BASE = RESULTS_FT_DIR
 
 # ── Configuration des EAs ─────────────────────────────────────────────────────
 EA_CONFIG: dict[str, dict] = {
@@ -233,6 +256,9 @@ def launch_and_wait(
     -------
     (is_xml, fwd_xml) — None si le fichier n'a pas été produit ou est trop petit.
     """
+    if not MT5_AVAILABLE:
+        raise RuntimeError("Le lancement MT5 n'est disponible que sur Windows.")
+
     for p in (tmp_is_xml, tmp_fwd_xml):
         if p.exists():
             p.unlink()
@@ -361,10 +387,14 @@ def is_mt5_running() -> bool:
 
 def check_environment() -> list[str]:
     """Retourne une liste d'erreurs de configuration (vide = tout OK)."""
+    if not MT5_AVAILABLE:
+        return ["Cette fonctionnalité n'est disponible que sur Windows."]
     errors: list[str] = []
     if not MT5_EXE.exists():
         errors.append(f"terminal64.exe introuvable : {MT5_EXE}")
-    if not MT5_DATA.exists():
+    if MT5_DATA is None:
+        errors.append("Aucun dossier MetaTrader 5 trouvé dans AppData\\Roaming\\MetaQuotes\\Terminal\\")
+    elif not MT5_DATA.exists():
         errors.append(f"Dossier données MT5 introuvable : {MT5_DATA}")
     if not SET_SOURCE_DIR.exists():
         errors.append(f"Dossier Paramètrage_EA introuvable : {SET_SOURCE_DIR}")

@@ -1,0 +1,40 @@
+# Données (téléchargées séparément via OneDrive)
+data/
+
+# Cache Streamlit
+_cache/
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+.env
+
+# Config locale (chemins personnels, non versionnés)
+# Exemple : TB_SET_DIR=C:\mon\dossier\Paramètrage_EA
+.env.local
+
+# IDE
+.vscode/settings.json
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporaires
+*.tmp
+*.log

@@ -13,7 +13,7 @@ import streamlit as st
 
 from config_analyse import OOS_LABELS, OOS_WINDOWS
 from core.constants import PLOTLY_DARK, THEME
-from core.ui_helpers import st_plotly
+from core.ui_helpers import chart_badge, st_plotly
 from core.loader import load_combo_df
 from core.market_data import _load_local_ohlc
 from core.single_run import OUTPUT_DETAIL, detail_status, load_all_detail_trades
@@ -205,8 +205,9 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                         title=f"{_m_avail.get(met_sel, met_sel)} par pli — Café et Cacao",
                     )
                     fig_ov.update_layout(height=380, **PLOTLY_DARK)
-                    st_plotly(fig_ov, "hyp_b_ov_bar")
+                    st_plotly(fig_ov, "hyp_b_ov_bar", num=57)
 
+                chart_badge(58)
                 disp_cols = [c for c in [
                     "robot_label", "Actif", "Pli OOS",
                     "OOS_Score_Med", "OOS_Return_Med_Pct", "OOS_DD_Med",
@@ -273,7 +274,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                                         color_discrete_sequence=[_ROBOT_COLOR[robot]],
                                     )
                                     fig_sc.update_layout(height=300, **PLOTLY_DARK)
-                                    st_plotly(fig_sc, f"sc_{robot}_{actif_clean}_{pli}")
+                                    st_plotly(fig_sc, f"sc_{robot}_{actif_clean}_{pli}", num=59)
 
     # ══════════════════════════════════════════════════════════════════════════
     # SOUS-ONGLET 2 — SAISONNALITÉ
@@ -319,9 +320,10 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
             fig_seas.add_hline(y=0, line_dash="dash",
                                line_color="rgba(255,255,255,0.3)", line_width=1)
             fig_seas.update_layout(height=400, **PLOTLY_DARK)
-            st_plotly(fig_seas, "seas_bar_compare")
+            st_plotly(fig_seas, "seas_bar_compare", num=60)
 
             st.markdown("#### Statistiques mensuelles détaillées")
+            chart_badge(61)
             col_cof, col_coc = st.columns(2)
             for col_w, ac in zip([col_cof, col_coc], _AGRI_ASSETS):
                 with col_w:
@@ -360,7 +362,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                     fig_box.add_hline(y=0, line_dash="dash",
                                       line_color="rgba(255,255,255,0.3)", line_width=1)
                     fig_box.update_layout(height=380, **PLOTLY_DARK)
-                    st_plotly(fig_box, f"box_{ac}")
+                    st_plotly(fig_box, f"box_{ac}", num=62)
 
     # ══════════════════════════════════════════════════════════════════════════
     # SOUS-ONGLET 3 — HEATMAP STABILITÉ
@@ -420,7 +422,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                 title=f"Rdt log moyen mensuel (%) — {_AGRI_LABELS[ac]} par pli OOS",
                 **PLOTLY_DARK,
             )
-            st_plotly(fig_hm, f"hm_{ac}")
+            st_plotly(fig_hm, f"hm_{ac}", num=63)
 
             if pivot.shape[0] >= 2:
                 corr_pairs = []
@@ -450,8 +452,14 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
     with tab_synth:
         st.markdown(
             "### Simulation du Filtre Saisonnier\n"
-            "Sélectionner les mois **actifs**. "
-            "Le test compare la distribution des rendements mensuels entre mois actifs et exclus."
+            "Sélectionner les mois **actifs** (inclus dans la stratégie). "
+            "Les tests comparent la distribution des rendements entre mois actifs et mois exclus.  \n\n"
+            "> **Tests utilisés ici** : Mann-Whitney U (non-paramétrique) + Welch t-test.  \n"
+            "> **Ce qu'ils testent** : *les mois sélectionnés comme actifs ont-ils un rendement "
+            "significativement différent des mois exclus ?* — comparaison de **deux groupes définis "
+            "par le filtre saisonnier**, pas de saisonnalité calendaire globale.  \n"
+            "> ≠ de l'**ANOVA** (page Profil des Actifs) qui teste si les 12 mois calendaires "
+            "ont des rendements différents entre eux, sans notion de filtre."
         )
         _synth_monthly: dict[str, pd.DataFrame] = {}
         for ac in _AGRI_ASSETS:
@@ -516,7 +524,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                                    annotation_text=f"Moy. exclus ({grp_exc.mean():.2f}%)",
                                    annotation_position="top left")
                 fig_dist.update_layout(height=360, **PLOTLY_DARK)
-                st_plotly(fig_dist, f"dist_{ac}")
+                st_plotly(fig_dist, f"dist_{ac}", num=65)
 
                 mois_act_str = ", ".join(_MONTH_NAMES[m - 1] for m in sorted(active_sel))
                 mois_exc_str = ", ".join(_MONTH_NAMES[m - 1] for m in sorted(excluded))
@@ -554,10 +562,21 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
             "représentatives (meilleure, médiane, pire) par combinaison robot × actif × pli."
         )
 
+        _tf_opts  = ["Toutes (H1 + H4 + D1)", "H1", "H4", "D1"]
+        _sel_tf_t = st.selectbox(
+            "Timeframe (journaux)",
+            _tf_opts,
+            index=_tf_opts.index(sel_tf) if sel_tf in _tf_opts else 1,
+            key="t_tf",
+            help="Choisir un TF ou agréger tous les timeframes ensemble.",
+        )
+        _tfs_t = ["H1", "H4", "D1"] if _sel_tf_t == "Toutes (H1 + H4 + D1)" else [_sel_tf_t]
+
         _detail_combos = [
-            {"robot": robot, "actif_tb": actif_tb, "tf": sel_tf, "pli": pli}
+            {"robot": robot, "actif_tb": actif_tb, "tf": tf, "pli": pli}
             for robot    in _MR_ROBOTS
             for actif_tb in _AGRI_ASSETS.values()
+            for tf       in _tfs_t
             for pli      in [1, 2, 3]
         ]
         _status_map   = detail_status(_detail_combos, OUTPUT_DETAIL)
@@ -574,18 +593,19 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
             for actif_tb in _AGRI_ASSETS.values():
                 actif_clean = actif_tb.replace(".TB", "")
                 for robot in _MR_ROBOTS:
-                    for pli in [1, 2, 3]:
-                        row = {
-                            "Robot": _MR_ROBOTS[robot],
-                            "Actif": _AGRI_LABELS[actif_clean],
-                            "TF":    sel_tf,
-                            "Pli":   OOS_LABELS.get(pli, f"Pli {pli}"),
-                        }
-                        for lbl in ("best", "median", "worst"):
-                            key    = f"{robot}/{actif_clean}/{sel_tf}/fold{pli}/{lbl}"
-                            status = _status_map.get(key, "missing")
-                            row[lbl.capitalize()] = "✅" if status == "done" else "🔲"
-                        status_rows.append(row)
+                    for tf in _tfs_t:
+                        for pli in [1, 2, 3]:
+                            row = {
+                                "Robot": _MR_ROBOTS[robot],
+                                "Actif": _AGRI_LABELS[actif_clean],
+                                "TF":    tf,
+                                "Pli":   OOS_LABELS.get(pli, f"Pli {pli}"),
+                            }
+                            for lbl in ("best", "median", "worst"):
+                                key    = f"{robot}/{actif_clean}/{tf}/fold{pli}/{lbl}"
+                                status = _status_map.get(key, "missing")
+                                row[lbl.capitalize()] = "✅" if status == "done" else "🔲"
+                            status_rows.append(row)
             st.dataframe(pd.DataFrame(status_rows),
                          use_container_width=True, hide_index=True)
 
@@ -614,6 +634,16 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
         )
         df_trades["pli_label"] = df_trades["pli"].map(OOS_LABELS)
         df_trades["win"]       = (df_trades["Profit"] > 0).astype(int)
+        # Rendement % par trade : normalise le compound (Profit / capital_avant × 100)
+        if "Balance" in df_trades.columns:
+            _cap_before = df_trades["Balance"] - df_trades["Profit"]
+            df_trades["ret_pct"] = np.where(
+                _cap_before > 0,
+                df_trades["Profit"] / _cap_before * 100,
+                np.nan,
+            )
+        else:
+            df_trades["ret_pct"] = df_trades["Profit"] / 100_000 * 100
         df_trades["Actif"]     = df_trades["actif_clean"].map(_AGRI_LABELS)
         df_trades["Robot"]     = df_trades["robot"].map(_MR_ROBOTS)
         df_trades["Passe"]     = df_trades["pass_label"].map(
@@ -628,17 +658,21 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
         ca, cb = st.columns(2)
         with ca:
             _sel_robot_t = st.selectbox(
-                "Robot", ["Tous"] + list(_MR_ROBOTS.values()), key="t_robot"
+                "Famille",
+                ["Toutes (MR & ZS)"] + list(_MR_ROBOTS.values()),
+                key="t_robot",
             )
         with cb:
             _sel_actif_t = st.selectbox(
-                "Actif", ["Tous", "Café", "Cacao"], key="t_actif"
+                "Actif",
+                ["Tous (Café + Cacao)", "Café", "Cacao"],
+                key="t_actif",
             )
 
         df_t = df_trades.copy()
-        if _sel_robot_t != "Tous":
+        if _sel_robot_t not in ("Toutes (MR & ZS)",):
             df_t = df_t[df_t["Robot"] == _sel_robot_t]
-        if _sel_actif_t != "Tous":
+        if _sel_actif_t not in ("Tous (Café + Cacao)",):
             df_t = df_t[df_t["Actif"] == _sel_actif_t]
 
         if df_t.empty:
@@ -657,7 +691,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
             title="Nombre de trades par mois calendaire",
         )
         fig_cnt.update_layout(height=380, **PLOTLY_DARK)
-        st_plotly(fig_cnt, "t_cnt")
+        st_plotly(fig_cnt, "t_cnt", num=67)
 
         # 2 — Tableau récap
         st.markdown("#### 2 — Tableau Récapitulatif par Mois")
@@ -684,6 +718,74 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
             },
         )
 
+        # 2b — Heatmap PnL moyen par actif × mois
+        st.markdown("#### 2b — Heatmap P&L moyen par trade — Café / Cacao × Mois")
+        st.caption(f"Timeframe : {_sel_tf_t} — famille : {_sel_robot_t} — couleur = P&L moyen par trade ($)")
+
+        _df_t2 = df_trades.copy()
+        if _sel_robot_t not in ("Toutes (MR & ZS)",):
+            _df_t2 = _df_t2[_df_t2["Robot"] == _sel_robot_t]
+
+        _hm_rows = []
+        _use_pct = "ret_pct" in _df_t2.columns
+        _val_col = "ret_pct" if _use_pct else "Profit"
+        for _ac, _lbl in [("COFFEE", "Café"), ("COCOA", "Cacao")]:
+            _df_ac = _df_t2[_df_t2["actif_clean"] == _ac]
+            for _m in range(1, 13):
+                _sub = _df_ac[_df_ac["month"] == _m][_val_col].dropna()
+                _val = float(_sub.mean()) if len(_sub) > 0 else float("nan")
+                _lbl_cell = (
+                    f"{_val:.3f}%\n(N={len(_sub)})" if (len(_sub) > 0 and _use_pct)
+                    else f"${_val:.0f}\n(N={len(_sub)})" if len(_sub) > 0
+                    else ""
+                )
+                _hm_rows.append({
+                    "Actif": _lbl,
+                    "month": _m,
+                    "val":   _val,
+                    "label": _lbl_cell,
+                })
+        _df_hm = pd.DataFrame(_hm_rows)
+
+        if not _df_hm["val"].notna().any():
+            st.info("Aucun trade disponible pour cette sélection.")
+        else:
+            _pivot_hm = (
+                _df_hm.pivot(index="Actif", columns="month", values="val")
+                .reindex(columns=range(1, 13))
+            )
+            _pivot_lbl = (
+                _df_hm.pivot(index="Actif", columns="month", values="label")
+                .reindex(columns=range(1, 13))
+                .fillna("")
+            )
+            _pivot_hm.columns  = _MONTH_NAMES
+            _pivot_lbl.columns = _MONTH_NAMES
+
+            _zmid = 0.0
+            _zmax = _pivot_hm.abs().max().max()
+            _cb_title = "Rdt % moy/trade" if _use_pct else "P&L moy ($)"
+            _hover_fmt = "%.3f%%" if _use_pct else "$%.0f"
+            fig_hm2b = go.Figure(data=go.Heatmap(
+                z=_pivot_hm.values,
+                x=_MONTH_NAMES,
+                y=list(_pivot_hm.index),
+                colorscale="RdYlGn",
+                zmid=_zmid,
+                zmin=-_zmax, zmax=_zmax,
+                text=_pivot_lbl.values,
+                texttemplate="%{text}",
+                textfont=dict(size=11),
+                colorbar=dict(title=_cb_title),
+                hovertemplate=f"Mois : %{{x}}<br>Actif : %{{y}}<br>{_cb_title} : {_hover_fmt}<extra></extra>",
+            ))
+            fig_hm2b.update_layout(**{
+                **PLOTLY_DARK,
+                "height": 220,
+                "margin": dict(l=10, r=10, t=10, b=10),
+            })
+            st_plotly(fig_hm2b, "t_actif_month_hm", num=69)
+
         # 3 — Heatmap P&L par mois × pli
         st.markdown("#### 3 — Heatmap P&L Moyen par Mois × Pli OOS")
         hm_data = (
@@ -705,7 +807,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
         fig_hm_t.update_layout(height=300,
                                title="P&L moyen par trade ($) — mois × pli OOS",
                                **PLOTLY_DARK)
-        st_plotly(fig_hm_t, "t_heatmap")
+        st_plotly(fig_hm_t, "t_heatmap", num=70)
 
         # 4 — Test statistique sur trades réels
         st.markdown("#### 4 — Test Statistique sur Trades Réels")
@@ -745,7 +847,7 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                 title="Distribution du P&L par trade — mois actifs vs exclus",
             )
             fig_dist_t.update_layout(height=360, **PLOTLY_DARK)
-            st_plotly(fig_dist_t, "t_dist")
+            st_plotly(fig_dist_t, "t_dist", num=71)
 
             sig_t = pval_t < 0.05
             delta_t = grp_act_t.mean() - grp_exc_t.mean()
@@ -789,4 +891,4 @@ def render(df_kpi_raw: pd.DataFrame) -> None:
                     title="MaxDD estimé par mois calendaire",
                 )
                 fig_dd.update_layout(height=360, **PLOTLY_DARK)
-                st_plotly(fig_dd, "t_dd_month")
+                st_plotly(fig_dd, "t_dd_month", num=72)

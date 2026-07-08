@@ -23,7 +23,10 @@ import plotly.graph_objects as go
 import scipy.stats as sp_stats
 import streamlit as st
 
-from core.ui_helpers import st_plotly
+from config import TB_MT5_DIR
+from config_analyse import ASSET_LABELS as _CFG_ASSET_LABELS, ROBOT_FAMILY
+from core.constants import GLOBAL_CSS, PLOTLY_DARK
+from core.ui_helpers import chart_badge, st_plotly
 
 try:
     from statsmodels.tsa.stattools import adfuller as _adfuller
@@ -31,28 +34,9 @@ try:
 except ImportError:
     _HAS_STATSMODELS = False
 
-# CSS fond blanc — cette page est exportable / présentable hors dashboard sombre
-_WHITE_CSS = """
-<style>
-    [data-testid="stAppViewContainer"] { background: #FFFFFF !important; }
-    [data-testid="stSidebar"]          { background: #F5F7FA !important; }
-    [data-testid="stHeader"]           { background: #FFFFFF !important; }
-    h1  { color: #1565C0 !important; }
-    h2, h3, h4 { color: #212121 !important; }
-    p, li, span, label { color: #333333; }
-    .stButton > button {
-        background: #1565C0; color: #FFFFFF;
-        font-weight: bold; border: none; border-radius: 6px;
-    }
-    .stButton > button:hover { background: #0D47A1; color: #FFFFFF; }
-    [data-testid="stDataFrame"] { background: #FFFFFF; }
-</style>
-"""
 
-# ── Chemins (raw string pour espaces et accents Windows) ──────────────────────
-_TB_MT5 = Path(
-    r"C:\Users\alext\OneDrive - HESSO\HEG Genève\Semestre 6\Travail de bachelor\TB-MT5"
-)
+# ── Chemin données MT5 ────────────────────────────────────────────────────────
+_TB_MT5 = TB_MT5_DIR
 _START = "2015-01-01"
 _END   = "2025-12-31"
 
@@ -311,14 +295,7 @@ _HURST_COLOR = {
 }
 _BAR_PALETTE = ["#1565C0", "#E65100", "#2E7D32"]  # H1 / H4 / D1
 
-# Paramètres Plotly fond blanc appliqués à tous les graphiques
-_LW: dict = dict(
-    template="plotly_white",
-    paper_bgcolor="#FFFFFF",
-    plot_bgcolor="#FFFFFF",
-    font=dict(family="Inter, Segoe UI, sans-serif", color="#212121", size=13),
-    margin=dict(l=40, r=40, t=60, b=40),
-)
+_LW = PLOTLY_DARK
 
 def _extremes_caption(df: pd.DataFrame) -> str:
     parts = []
@@ -367,7 +344,7 @@ _DISPLAY_COLS = [
 st.set_page_config(
     page_title="Profil Intrinsèque des Actifs", page_icon="🧬", layout="wide"
 )
-st.markdown(_WHITE_CSS, unsafe_allow_html=True)
+st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 st.title("🧬 Profil Intrinsèque des Actifs")
 
 st.markdown(
@@ -400,10 +377,11 @@ if df_all.empty:
     st.stop()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_recap, tab_cross, tab_vis, tab_export = st.tabs([
+tab_recap, tab_cross, tab_vis, tab_pred, tab_export = st.tabs([
     "📋 Tableaux Récap",
     "↔️ Comparaison Inter-TF",
     "📊 Visualisations",
+    "🎯 Prédiction vs Réalité",
     "💾 Export CSV",
 ])
 
@@ -431,6 +409,7 @@ with tab_recap:
                 lambda v: f"{_FAM_ICON.get(v, '')} {v}"
             )
             display = [c for c in _DISPLAY_COLS if c in df_tf.columns]
+            chart_badge(46)
             st.dataframe(
                 df_tf[display],
                 use_container_width=True, hide_index=True,
@@ -451,6 +430,7 @@ with tab_cross:
         "la confiance dans l'inférence a priori."
     )
 
+    chart_badge(47)
     for metric, fmt in [("Hurst", "%.3f"), ("Autocorr L1", "%.4f"), ("Vol Ann %", "%.1f %%")]:
         pivot = (
             df_all.pivot(index="Actif", columns="TF", values=metric)
@@ -499,7 +479,7 @@ with tab_vis:
         category_orders={"TF": TIMEFRAMES},
     )
     fig_vol.update_layout(height=380, **_LW)
-    st_plotly(fig_vol, "vol_bars")
+    st_plotly(fig_vol, "vol_bars", num=48)
 
     # ── 2. Hurst par actif ────────────────────────────────────────────────────
     st.markdown(f"#### 2 — Exposant de Hurst — {tf_sel}")
@@ -519,13 +499,16 @@ with tab_vis:
             annotation_position="top right",
         )
         fig_h.update_layout(height=380, **_LW)
-        st_plotly(fig_h, "hurst_bars")
+        st_plotly(fig_h, "hurst_bars", num=49)
 
-    # ── 3. Carte Tendance / Mean Reversion ───────────────────────────────────
-    st.markdown(f"#### 3 — Carte Tendance / Mean Reversion — {tf_sel}")
+    # ── 3. Scatter Hurst × Autocorrélation ───────────────────────────────────
+    st.markdown(f"#### 3 — Scatter Hurst × Autocorrélation — {tf_sel}")
     st.caption(
-        "Hurst en x (> 0.5 = persistant), Autocorr L1 en y (> 0 = momentum).  \n"
-        "Quadrant haut-droit → Trend Following théorique | bas-gauche → Mean Reversion théorique."
+        "**Axe X** : exposant de Hurst H (H > 0.5 = persistant/tendanciel, H < 0.5 = mean-revertant).  "
+        "**Axe Y** : autocorrélation au lag 1 des rendements log (> 0 = momentum, < 0 = retour à la moyenne).  \n"
+        "Quadrant **haut-droit** → Trend Following théorique | **bas-gauche** → Mean Reversion théorique.  \n"
+        "⬇️ Utilisez le bouton **PNG** ci-dessous pour exporter à haute résolution (2800 px, fond blanc) "
+        "pour insertion directe dans le mémoire Word."
     )
     df_map = df_vis.dropna(subset=["Hurst", "Autocorr L1"])
     if df_map.empty:
@@ -546,7 +529,7 @@ with tab_vis:
         fig_map.add_hline(y=0.0, line_dash="dash", line_color="rgba(0,0,0,0.2)",
                           annotation_text="AC=0")
         fig_map.update_layout(height=440, **_LW)
-        st_plotly(fig_map, "trend_map")
+        st_plotly(fig_map, "trend_map", num=50)
 
     # ── 4. Saisonnalité mensuelle — Café + Cacao (D1) ────────────────────────
     st.markdown("#### 4 — Saisonnalité Mensuelle — Café et Cacao (D1)")
@@ -574,7 +557,7 @@ with tab_vis:
             title="Rendement log moyen mensuel (%) — Café et Cacao",
         )
         fig_seas.update_layout(height=260, **_LW)
-        st_plotly(fig_seas, "seas_heatmap")
+        st_plotly(fig_seas, "seas_heatmap", num=51)
 
         for a in seas_assets:
             key = f"{a}_D1"
@@ -583,7 +566,13 @@ with tab_vis:
                 ap = seasonality[key]["anova_p"]
                 if not np.isnan(r2) and not np.isnan(ap):
                     sig = "✅ signal saisonnier significatif (p < 0.05)" if ap < 0.05 else "⚪ non significatif"
-                    st.caption(f"**{a}** — R² : {r2*100:.1f}% | ANOVA p-val : {ap:.4f} — {sig}")
+                    st.caption(
+                        f"**{a}** — R² : {r2*100:.1f}% | ANOVA p-val : {ap:.4f} — {sig}  \n"
+                        "_Test F de Fisher (ANOVA one-way) : teste si le rendement moyen varie "
+                        "significativement entre les **12 mois calendaires** — saisonnalité globale sur "
+                        "l'actif sous-jacent. ≠ du Mann-Whitney (page Hypothèses B) qui compare "
+                        "**mois actifs vs mois exclus** par le filtre saisonnier._"
+                    )
     else:
         st.info("Données de saisonnalité D1 non disponibles.")
 
@@ -600,11 +589,125 @@ with tab_vis:
     fig_adx.add_hline(y=25, line_dash="dash", line_color="rgba(0,0,0,0.3)",
                       annotation_text="ADX=25 (seuil tendance)", annotation_position="top right")
     fig_adx.update_layout(height=360, **_LW)
-    st_plotly(fig_adx, "adx_bars")
+    st_plotly(fig_adx, "adx_bars", num=52)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — EXPORT CSV
+# TAB 4 — PRÉDICTION VS RÉALITÉ
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_pred:
+    st.markdown(
+        "### Prédiction Théorique vs Réalité OOS\n"
+        "Pour chaque actif : le régime prédit par l'exposant de Hurst (D1, 2015–2025) "
+        "est confronté à la famille de stratégie réellement gagnante en Out-of-Sample.  \n"
+        "**Source Hurst** : calcul interne sur prix bruts. "
+        "**Source gagnant OOS** : meilleur rendement OOS médian par famille dans `df_kpi` "
+        "(à charger depuis l'Accueil)."
+    )
+
+    # Règle de prédiction basée sur Hurst seul (seuils du mémoire)
+    def _regime_from_hurst(h) -> str:
+        if h is None or np.isnan(h):
+            return "N/A"
+        if h > 0.55:
+            return "Tendanciel"
+        if h < 0.45:
+            return "Mean-Revertant"
+        return "Marche Aléatoire"
+
+    def _famille_from_regime(regime: str) -> str:
+        return {"Tendanciel": "Trend Following",
+                "Mean-Revertant": "Mean Reversion"}.get(regime, "Ambigu")
+
+    # Hurst D1 par actif
+    _df_d1 = df_all[df_all["TF"] == "D1"].set_index("Actif")
+
+    # Famille gagnante par actif depuis df_kpi (session_state)
+    _df_kpi_pred = st.session_state.get("df_kpi")
+    _winners: dict[str, str] = {}
+    if _df_kpi_pred is not None and not _df_kpi_pred.empty and "robot" in _df_kpi_pred.columns:
+        _dk = _df_kpi_pred.copy()
+        _dk["famille"] = _dk["robot"].map(ROBOT_FAMILY).fillna("Autre")
+        _ret_col = next((c for c in ("OOS_Return_Med_Pct", "OOS_Score_Med") if c in _dk.columns), None)
+        if _ret_col:
+            for _ac, _grp in _dk.groupby("actif_clean"):
+                _fm = _grp.groupby("famille")[_ret_col].median()
+                _winners[_ac] = str(_fm.idxmax()) if not _fm.empty else "N/A"
+
+    # Construction du tableau
+    _pred_rows = []
+    for _ac in ASSETS:
+        _h   = _df_d1.loc[_ac, "Hurst"] if _ac in _df_d1.index else float("nan")
+        _reg = _regime_from_hurst(_h)
+        _att = _famille_from_regime(_reg)
+        _win = _winners.get(_ac, "⚠️ Charger données (Accueil)")
+        if "⚠️" in _win or _win == "N/A":
+            _accord = "N/A"
+        elif _att == _win:
+            _accord = "✅ Oui"
+        elif _att == "Ambigu":
+            _accord = "🟡 Partiel"
+        else:
+            _accord = "❌ Non"
+        _pred_rows.append({
+            "Actif":                _CFG_ASSET_LABELS.get(_ac, _ac),
+            "Hurst D1":             round(float(_h), 3) if not np.isnan(_h) else None,
+            "Régime prédit":        _reg,
+            "Famille attendue":     _att,
+            "Famille gagnante OOS": _win,
+            "Accord":               _accord,
+        })
+
+    _df_pred = pd.DataFrame(_pred_rows)
+
+    # ── Tableau interactif ────────────────────────────────────────────────────
+    chart_badge(53)
+    st.dataframe(
+        _df_pred, use_container_width=True, hide_index=True,
+        column_config={
+            "Hurst D1": st.column_config.NumberColumn("Hurst D1", format="%.3f"),
+        },
+    )
+
+    # ── Export PNG via Plotly Table (pour insertion Word) ─────────────────────
+    st.markdown("##### Export pour le mémoire")
+    st.caption("Le bouton ⬇️ PNG ci-dessous exporte le tableau en image haute résolution (fond blanc).")
+
+    _ACCORD_COLORS = {"✅ Oui": "#C8E6C9", "🟡 Partiel": "#FFF9C4",
+                      "❌ Non": "#FFCDD2", "N/A": "#EEEEEE"}
+    _cell_colors = [
+        ["#FFFFFF"] * len(_pred_rows),          # Actif
+        ["#FFFFFF"] * len(_pred_rows),          # Hurst
+        ["#FFFFFF"] * len(_pred_rows),          # Régime
+        ["#E3F2FD"] * len(_pred_rows),          # Attendue
+        ["#F3E5F5"] * len(_pred_rows),          # Gagnante
+        [_ACCORD_COLORS.get(r["Accord"], "#EEEEEE") for r in _pred_rows],  # Accord
+    ]
+    fig_tbl = go.Figure(data=[go.Table(
+        header=dict(
+            values=[f"<b>{c}</b>" for c in _df_pred.columns],
+            fill_color="#1565C0",
+            font=dict(color="white", size=13),
+            align="center", height=35,
+        ),
+        cells=dict(
+            values=[_df_pred[c].astype(str).tolist() for c in _df_pred.columns],
+            fill_color=_cell_colors,
+            font=dict(color="#212121", size=12),
+            align=["left", "center", "center", "center", "center", "center"],
+            height=30,
+        ),
+    )])
+    fig_tbl.update_layout(
+        margin=dict(l=5, r=5, t=5, b=5),
+        paper_bgcolor="white",
+    )
+    st_plotly(fig_tbl, "pred_vs_reality_tbl",
+              filename="prediction_vs_realite", height=280)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — EXPORT CSV
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_export:
     st.markdown("### Export CSV — un fichier par timeframe")

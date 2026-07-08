@@ -14,6 +14,7 @@ import streamlit as st
 
 from core.constants import GLOBAL_CSS
 from core.mt5_runner import (
+    MT5_AVAILABLE,
     EA_CONFIG,
     FOLDS,
     SYMBOLS,
@@ -40,6 +41,14 @@ st.set_page_config(
     layout="wide",
 )
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
+if not MT5_AVAILABLE:
+    st.info(
+        "Cette page est réservée à l'auteur du projet (Windows + MetaTrader 5 installé).  \n"
+        "Elle permet de relancer les optimisations Walk-Forward — elle n'est pas nécessaire "
+        "pour consulter le dashboard."
+    )
+    st.stop()
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "batch" not in st.session_state:

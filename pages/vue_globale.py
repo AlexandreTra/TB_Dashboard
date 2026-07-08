@@ -10,9 +10,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from core.constants import GLOBAL_CSS
+from core.constants import GLOBAL_CSS, PLOTLY_DARK
 from core.mt5_runner import EA_CONFIG, FOLDS, TIMEFRAMES
-from core.ui_helpers import st_plotly
+from core.ui_helpers import chart_badge, st_plotly
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 _TF_ORDER     = ["H1", "H4", "D1"]
@@ -117,7 +117,30 @@ tab1, tab2, tab3 = st.tabs(["📋 Tableau Screening", "🗺️ Heatmap", "📊 I
 # TAB 1 — TABLEAU SCREENING
 # ══════════════════════════════════════════════════════════════════════════════
 with tab1:
-    st.markdown(f"**{len(df_f)} combinaisons** — une ligne = stratégie × actif × TF × pli.")
+    _n_loaded = len(df_f)
+    st.markdown(f"**{_n_loaded} combinaisons affichées** — une ligne = stratégie × actif × TF × pli.")
+    # ── Note sur le comptage (288 dans le mémoire vs affiché ici) ────────────
+    # 288 = 6 robots × 6 actifs × 3 TF × 3 plis (324 max) − 36 combos D1 exclus
+    # pour MR et ZS (aucun trade généré en D1 sur ces actifs = 2×6×1×3 = 36).
+    # Le nombre affiché ici peut être inférieur car il ne compte que les fichiers
+    # XML effectivement chargés ET ayant passé le filtre min_trades (≥30 trades).
+    with st.expander("ℹ️ Pourquoi ce nombre diffère du mémoire (288 combinaisons évaluées) ?"):
+        st.markdown(
+            """
+**Comptage théorique vs données chargées :**
+
+| | Valeur | Explication |
+|---|---|---|
+| Maximum théorique | **324** | 6 robots × 6 actifs × 3 TF × 3 plis |
+| Évalué dans le mémoire | **288** | −36 : MR et ZS exclus du D1 (aucun trade généré) |
+| Affiché ici | **{}** | Fichiers XML présents × filtre min_trades ≥ {} trades |
+
+**Causes de l'écart entre 288 et la valeur affichée :**
+1. Seules les combinaisons avec un fichier XML dans `Résultats_FT/` sont comptées.
+2. Le filtre *Trades minimum par passe* (réglé à l'Accueil) exclut les combinaisons inactives.
+3. Les combos D1 pour MR et ZS sont inclus dans le chargement mais produisent souvent 0 trade → exclus par le filtre.
+            """.format(_n_loaded, st.session_state.get("_min_trades_last", 30))
+        )
 
     display_map = {
         "robot_label":         "Stratégie",
@@ -152,12 +175,14 @@ with tab1:
         elif dst in {"Sharpe OOS", "DD% OOS"}:
             col_cfg[dst] = st.column_config.NumberColumn(dst, format="%.2f")
 
+    chart_badge(2)
     st.dataframe(df_disp, use_container_width=True, height=600, column_config=col_cfg)
 
     # Vue consolidée sur les plis
     agg_cols = [c for c in ["OOS_Return_Med_Pct", "OOS_Pct_Prof", "WFE_Pct",
                              "OOS_Sharpe_Med", "OOS_DD_Med"] if c in df_f.columns]
     if agg_cols:
+        chart_badge(3)
         st.markdown("#### Vue consolidée — Moyenne des plis par (Stratégie × Actif × TF)")
         df_cons = (
             df_f.groupby(["robot_label", "actif_clean", "timeframe"])[agg_cols]
@@ -175,6 +200,71 @@ with tab1:
         )
         st.dataframe(df_cons, use_container_width=True, height=380)
 
+    # ── Vue d'ensemble : profitabilité par actif, toutes familles confondues ──
+    _has_rdt  = "OOS_Return_Med_Pct" in df_f.columns
+    _has_prof = "OOS_Pct_Prof" in df_f.columns
+    if _has_rdt or _has_prof:
+        st.markdown("#### Vue d'ensemble — Profitabilité par actif *(toutes stratégies × TF × plis)*")
+        st.caption(
+            "Barre bleue : % de combinaisons avec un rendement OOS médian positif.  "
+            "Barre verte : % de combinaisons où la majorité des passes OOS sont profitables (>50 %).  "
+            "Pointillé = seuil 50 %."
+        )
+
+        _agg_parts: dict = {}
+        if _has_rdt:
+            _agg_parts["rdt_pos"]  = ("OOS_Return_Med_Pct", lambda s: (s > 0).mean() * 100)
+        if _has_prof:
+            _agg_parts["pct_prof"] = ("OOS_Pct_Prof",       lambda s: (s > 50).mean() * 100)
+
+        _agg = (
+            df_f.groupby("actif_clean")
+            .agg(**_agg_parts)
+            .reset_index()
+            .sort_values(next(iter(_agg_parts)), ascending=False)
+        )
+
+        fig_ov = go.Figure()
+        if "rdt_pos" in _agg.columns:
+            fig_ov.add_bar(
+                name="Rdt OOS méd > 0 %",
+                x=_agg["actif_clean"],
+                y=_agg["rdt_pos"].round(1),
+                marker_color="#4FC3F7",
+                opacity=0.88,
+                text=(_agg["rdt_pos"].round(0).astype(int).astype(str) + " %"),
+                textposition="outside",
+            )
+        if "pct_prof" in _agg.columns:
+            fig_ov.add_bar(
+                name="Majorité passes prof (> 50 %)",
+                x=_agg["actif_clean"],
+                y=_agg["pct_prof"].round(1),
+                marker_color="#81C784",
+                opacity=0.88,
+                text=(_agg["pct_prof"].round(0).astype(int).astype(str) + " %"),
+                textposition="outside",
+            )
+        fig_ov.add_hline(
+            y=50,
+            line_dash="dash",
+            line_color="rgba(255,255,255,0.45)",
+            line_width=1,
+            annotation_text="50 %",
+            annotation_position="top right",
+            annotation_font_color="rgba(255,255,255,0.55)",
+        )
+        fig_ov.update_layout(**PLOTLY_DARK)
+        fig_ov.update_layout(
+            barmode="group",
+            height=420,
+            yaxis=dict(title="% des combinaisons", range=[0, 115]),
+            xaxis_title="Actif",
+            margin=dict(l=20, r=80, t=10, b=20),
+            legend=dict(orientation="h", y=1.08),
+        )
+        st_plotly(fig_ov, "vg_actif_profitable", num=4)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — HEATMAP Robot × Actif
@@ -183,6 +273,7 @@ with tab2:
     st.markdown(f"### Heatmap — {heatmap_label}")
     st.markdown("Une heatmap par timeframe. Lignes = Stratégies, Colonnes = Actifs. Valeur = moyenne des plis sélectionnés.")
 
+    _TF_CHART_NUMS = {"H1": 5, "H4": 6, "D1": 7}
     tfs_avail = [tf for tf in _TF_ORDER if tf in df_f["timeframe"].unique()]
     if not tfs_avail:
         st.warning("Aucun timeframe dans la sélection.")
@@ -215,9 +306,10 @@ with tab2:
                 labels={"x": "Actif", "y": "Stratégie", "color": heatmap_label},
                 aspect="auto",
             )
+            fig.update_layout(**PLOTLY_DARK)
             fig.update_layout(height=320, margin=dict(l=10, r=10, t=50, b=10))
             fig.update_traces(textfont_size=12)
-            st_plotly(fig, f"hm_{tf}")
+            st_plotly(fig, f"hm_{tf}", num=_TF_CHART_NUMS.get(tf))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -253,16 +345,18 @@ with tab3:
             name="Rdt OOS % méd", x=df_bar["label"], y=df_bar[oos_col],
             marker_color="#81C784", opacity=0.9,
         )
+        fig_bar.update_layout(**PLOTLY_DARK)
         fig_bar.update_layout(
             barmode="group", height=460,
             xaxis_tickangle=-40, yaxis_title="Rendement Médian (%)",
             legend=dict(orientation="h", y=1.08),
             margin=dict(l=20, r=20, t=20, b=130),
         )
-        st_plotly(fig_bar, "isoos_bar")
+        st_plotly(fig_bar, "isoos_bar", num=8)
 
         # ── WFE table ─────────────────────────────────────────────────────────
         if "WFE_Pct" in df_f.columns:
+            chart_badge(9)
             st.markdown("#### WFE % par (Stratégie × TF) — moyenne des plis et actifs")
             df_wfe = (
                 df_f.groupby(["robot_label", "timeframe"])["WFE_Pct"]
@@ -307,5 +401,6 @@ with tab3:
                     type="line", x0=lo, y0=lo, x1=hi, y1=hi,
                     line=dict(color="rgba(255,255,255,0.4)", dash="dash", width=1),
                 )
+        fig_sc.update_layout(**PLOTLY_DARK)
         fig_sc.update_layout(height=480, margin=dict(l=20, r=20, t=20, b=20))
-        st_plotly(fig_sc, "isoos_scatter")
+        st_plotly(fig_sc, "isoos_scatter", num=10)

@@ -20,12 +20,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from config import TB_PYTHON_DIR
 from core.constants import SYMBOL_TO_TICKER
 
 # ── Chemins des données locales ───────────────────────────────────────────────
-_HERE     = Path(__file__).parent.parent          # TB_Dashboard/
-_TB_ROOT  = _HERE.parent                          # Travail de bachelor/
-_CSV_DIR  = _TB_ROOT / "TB-Python"               # TB-Python/
+_CSV_DIR = TB_PYTHON_DIR
 
 # Symbole MT5 → code CSV (préfixe des fichiers GC_D1.csv, XBZ_D1.csv, etc.)
 _SYMBOL_TO_CODE: dict[str, str] = {

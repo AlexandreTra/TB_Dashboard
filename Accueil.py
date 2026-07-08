@@ -25,22 +25,19 @@ pg = st.navigation(
             st.Page("pages/accueil.py", title="Accueil", icon="🏠", default=True),
         ],
         "📈 Résultats": [
-            st.Page("pages/vue_globale.py",     title="Vue Globale",     icon="📊"),
-            st.Page("pages/analyse_croisee.py", title="Analyse Croisée", icon="🔀"),
-            st.Page("pages/benchmarks.py",      title="Benchmarks",      icon="🏁"),
+            st.Page("pages/vue_globale.py",   title="Vue Globale",  icon="📊"),
+            st.Page("pages/benchmarks.py",    title="Benchmarks",   icon="🏁"),
         ],
         "🌍 Contexte de Marché": [
-            st.Page("pages/regime_marche.py",   title="Régime de Marché",icon="🌊"),
-            st.Page("pages/profil_actifs.py",   title="Profil des Actifs",icon="🧬"),
+            st.Page("pages/profil_actifs.py", title="Profil des Actifs", icon="🧬"),
         ],
         "🔍 Analyse Avancée": [
-            st.Page("pages/sensibilite.py",     title="Sensibilité",      icon="🎚️"),
-            st.Page("pages/journaux.py",        title="Journaux de Trades",icon="📋"),
-            st.Page("pages/hypotheses.py",      title="Hypothèses",       icon="🧪"),
+            st.Page("pages/journaux.py",   title="Journaux de Trades", icon="📋"),
+            st.Page("pages/hypotheses.py", title="Hypothèses",         icon="🧪"),
         ],
         "📝 Outils": [
-            st.Page("pages/export.py",          title="Narrative & Export",icon="📄"),
-            st.Page("pages/mt5_lancer.py",      title="Lancer MT5",      icon="⚙️"),
+            st.Page("pages/mt5_lancer.py",    title="Lancer MT5",       icon="⚙️"),
+            st.Page("pages/index_visuels.py", title="Index des Visuels", icon="🗂️"),
         ],
     }
 )
